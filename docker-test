@@ -1,0 +1,30 @@
+#!/bin/bash
+rm -rf `pwd`/model/*
+
+############################
+#######   clean up first ###
+############################
+docker rm -f tf-ps
+docker rm -f tf-worker0
+docker rm -f tf-master0
+
+docker network rm tfd-network
+docker volume rm model-vol
+
+#####################################
+#######  setup network and volume ###
+#####################################
+docker network create tfd-network
+docker volume create --name model-vol
+
+
+###########################
+docker run -t -d -p 7770:7770 --name tf-ps --network tfd-network -v model-vol:/app/model dyzhou/tf_wide_n_deep:0.1 --ps_hosts tf-ps:7770 --worker_hosts tf-worker0:7771 --master_host tf-master0:7772 --data_dir /app/census-data --model_dir /app/model --job_name ps --task_index 0
+
+
+###########################
+docker run -t -d -p 7771:7771 --name tf-worker0 --network tfd-network -v model-vol:/app/model dyzhou/tf_wide_n_deep:0.1 --ps_hosts tf-ps:7770 --worker_hosts tf-worker0:7771 --master_host tf-master0:7772 --data_dir /app/census-data --model_dir /app/model --job_name worker --task_index 0
+
+
+###########################
+docker run -t -d -p 7772:7772 --name tf-master0 --network tfd-network -v model-vol:/app/model dyzhou/tf_wide_n_deep:0.1 --ps_hosts tf-ps:7770 --worker_hosts tf-worker0:7771 --master_host tf-master0:7772 --data_dir /app/census-data --model_dir /app/model --job_name master --task_index 0

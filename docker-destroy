@@ -1,0 +1,13 @@
+#!/bin/bash
+rm -rf `pwd`/model/*
+
+############################
+#######   clean up first ###
+############################
+docker rm -f tf-ps
+docker rm -f tf-worker0
+docker rm -f tf-master0
+
+docker network rm tfd-network
+docker volume rm model-vol
+

@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+######################
+# clear model and log
+######################
+rm -rf model/* *.log
+
+
+######################
+# start ps task
+######################
+python census_wide_n_deep.py --data_dir census-data --model_dir `pwd`/model --master_host localhost:22220 --ps_hosts localhost:22221 --worker_hosts localhost:22222 --job_name ps --task_index 0 > /dev/null 2>&1 &
+
+
+######################
+# start master task
+######################
+python census_wide_n_deep.py --data_dir census-data --model_dir `pwd`/model --master_host localhost:22220 --ps_hosts localhost:22221 --worker_hosts localhost:22222 --job_name master --task_index 0 > master.log 2>&1 &
+
+
+######################
+# start worker task
+######################
+python census_wide_n_deep.py --data_dir census-data --model_dir `pwd`/model --master_host localhost:22220 --ps_hosts localhost:22221 --worker_hosts localhost:22222 --job_name worker --task_index 0 #> worker.log 2>&1 &
+

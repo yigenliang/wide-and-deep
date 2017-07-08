@@ -1,3 +1,4 @@
 #!/usr/bin/env bash
 
-kubectl create -f tf-k8s-cloud.yaml --validate=false
+sudo rm -rf /shared/model/*
+kubectl create -f tf-k8s-working.yaml --validate=true

@@ -6,7 +6,7 @@ rm -rf `pwd`/model/*
 ############################
 docker rm -f tf-ps
 docker rm -f tf-worker0
-docker rm -f tf-master0
+docker rm -f tf-worker1
 
 docker network rm tfd-network
 docker volume rm model-vol

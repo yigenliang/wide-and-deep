@@ -15,16 +15,16 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: tf-master0
+  name: tf-worker1
   labels:
-    tf-master: "0"
+    tf-worker: "1"
 spec:
   type: ClusterIP
   ports:
   - port: 2222
     targetPort: 2222
   selector:
-    tf-master: "0"
+    tf-worker: "1"
 ---
 apiVersion: v1
 kind: Service
@@ -45,7 +45,6 @@ kind: Job
 metadata:
   name: tf-worker0
 spec:
-  replicas: 1
   template:
     metadata:
       labels:
@@ -54,18 +53,16 @@ spec:
         job: "worker"
     spec:
       restartPolicy: Never
-#      nodeSelector:
-#        duty: ps_chief.worker
       containers:
       - name: tf-worker0
         image: "dyzhou/tf_wide_n_deep:0.1"
         imagePullPolicy: IfNotPresent
-        args: ["--data_dir", "/app/census-data", "--model_dir", "/shared/model", "--ps_hosts", "tf-ps0:2222", "--worker_hosts", "tf-worker0:2222", "--master_host", "tf-master0:2222", "--job_name", "worker", "--task_index", "0"]
-#        resources:
-#          requests:
-#            cpu: "1"
-#          limits:
-#            alpha.kubernetes.io/nvidia-gpu: 0
+        args: ["--data_dir", "/app/census-data", "--model_dir", "/shared/model", "--ps_hosts", "tf-ps0:2222", "--worker_hosts", "localhost:2222,tf-worker1:2222", "--job_name", "worker", "--task_index", "0"]
+        resources:
+          requests:
+            cpu: "100m"
+          limits:
+            alpha.kubernetes.io/nvidia-gpu: 0
         ports:
         - containerPort: 2222
         env: []
@@ -75,27 +72,26 @@ spec:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: tf-master0
+  name: tf-worker1
 spec:
-  replicas: 1
   template:
     metadata:
       labels:
-        tf-master: "0"
+        tf-worker: "1"
         name-prefix: "tf"
-        job: "master"
+        job: "worker"
     spec:
       restartPolicy: Never
       containers:
-      - name: tf-master0
+      - name: tf-worker1
         image: "dyzhou/tf_wide_n_deep:0.1"
         imagePullPolicy: IfNotPresent
-        args: ["--data_dir", "/app/census-data", "--model_dir", "/shared/model", "--ps_hosts", "tf-ps0:2222", "--worker_hosts", "tf-worker0:2222", "--master_host", "tf-master0:2222", "--job_name", "master", "--task_index", "0"]
-#        resources:
-#          requests:
-#            cpu: "1"
-#          limits:
-#            alpha.kubernetes.io/nvidia-gpu: 0
+        args: ["--data_dir", "/app/census-data", "--model_dir", "/shared/model", "--ps_hosts", "tf-ps0:2222", "--worker_hosts", "tf-worker0:2222,localhost:2222", "--job_name", "worker", "--task_index", "1"]
+        resources:
+          requests:
+            cpu: "100m"
+          limits:
+            alpha.kubernetes.io/nvidia-gpu: 0
         ports:
         - containerPort: 2222
         env: []
@@ -116,16 +112,14 @@ spec:
         job: "ps"
     spec:
       restartPolicy: Always
-#      nodeSelector:
-#        duty: ps_chief.worker
       containers:
       - name: tf-ps0
         image: "dyzhou/tf_wide_n_deep:0.1"
         imagePullPolicy: IfNotPresent
-        args: ["--data_dir", "/app/census-data", "--model_dir", "/shared/model", "--ps_hosts", "tf-ps0:2222", "--worker_hosts", "tf-worker0:2222", "--master_host", "tf-master0:2222", "--job_name", "ps", "--task_index", "0"]
-#        resources:
-#          requests:
-#            cpu: "1"
+        args: ["--data_dir", "/app/census-data", "--model_dir", "/shared/model", "--ps_hosts", "tf-ps0:2222", "--worker_hosts", "tf-worker0:2222,tf-worker1:2222", "--job_name", "ps", "--task_index", "0"]
+        resources:
+          requests:
+            cpu: "100m"
         ports:
         - containerPort: 2222
         env: []

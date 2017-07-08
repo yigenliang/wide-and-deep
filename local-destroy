@@ -1,3 +1,5 @@
 #!/usr/bin/env bash
 
+rm -rf model/* *.log
+
 ps aux | grep census | awk '{print $2}' | xargs kill -9

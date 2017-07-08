@@ -27,6 +27,8 @@ import json
 
 from six.moves import urllib
 
+from tensorflow.contrib.learn.python.learn import learn_runner
+
 import pandas as pd
 import tensorflow as tf
 
@@ -164,8 +166,8 @@ def input_fn(df):
     return feature_cols, label
 
 
-def train(model_dir, model_type, train_steps, data_dir, run_config):
-    """Train the model."""
+def get_df_train(data_dir):
+    """Read train data."""
     train_file_name = maybe_download_train(data_dir)
     df_train = pd.read_csv(
         tf.gfile.Open(train_file_name),
@@ -177,17 +179,11 @@ def train(model_dir, model_type, train_steps, data_dir, run_config):
 
     df_train[LABEL_COLUMN] = (
         df_train["income_bracket"].apply(lambda x: ">50K" in x)).astype(int)
-
-    model_dir = tempfile.mkdtemp() if not model_dir else model_dir
-    print("model directory = %s" % model_dir)
-
-    m = build_estimator(model_dir, model_type, run_config)
-    m.fit(input_fn=lambda: input_fn(df_train), steps=train_steps)
-    return m
+    return df_train
 
 
-def evaluate(estimator, data_dir):
-    """Evaluate the model."""
+def get_df_test(data_dir):
+    """Read test data."""
     test_file_name = maybe_download_test(data_dir)
     df_test = pd.read_csv(
         tf.gfile.Open(test_file_name),
@@ -200,13 +196,29 @@ def evaluate(estimator, data_dir):
 
     df_test[LABEL_COLUMN] = (
         df_test["income_bracket"].apply(lambda x: ">50K" in x)).astype(int)
-
-    results = estimator.evaluate(input_fn=lambda: input_fn(df_test), steps=1)
-    for key in sorted(results):
-        print("%s: %s" % (key, results[key]))
+    return df_test
 
 
 FLAGS = None
+
+
+def _create_experiment_fn(output_dir):
+    """Experiment creation function."""
+    data_dir = FLAGS.data_dir
+    model_dir = FLAGS.model_dir
+    model_type = FLAGS.model_type
+    train_steps = FLAGS.train_steps
+
+    # Get configuration from environment variables.
+    run_config = tf.contrib.learn.RunConfig()
+    estimator = build_estimator(model_dir, model_type, run_config)
+    return tf.contrib.learn.Experiment(
+        estimator=estimator,
+        train_input_fn=lambda: input_fn(get_df_train(data_dir)),
+        eval_input_fn=lambda: input_fn(get_df_test(data_dir)),
+        train_steps=train_steps,
+        eval_steps=1
+    )
 
 
 def main(_):
@@ -218,11 +230,6 @@ def main(_):
     job_name = FLAGS.job_name
     task_index = FLAGS.task_index
 
-    data_dir = FLAGS.data_dir
-    model_dir = FLAGS.model_dir
-    model_type = FLAGS.model_type
-    train_steps = FLAGS.train_steps
-
     cluster = tf.train.ClusterSpec(cluster_spec)
     server = tf.train.Server(cluster,
                              job_name=job_name,
@@ -231,20 +238,28 @@ def main(_):
     if job_name == "ps":
         server.join()
     elif job_name == "worker":
-        print("training in worker tasks...\n")
         # Set TF_CONFIG environment variable. RunConfig will get configuration
         # from environment variables.
         os.environ["TF_CONFIG"] = json.dumps(
             {"cluster": cluster_spec,
             "task": {"type": job_name, "index": task_index}})
 
-        # Get configuration from environment variables.
-        run_config = tf.contrib.learn.RunConfig(master="grpc://"+worker_hosts[task_index])
-        m = train(model_dir, model_type, train_steps, data_dir, run_config)
+        #----------------------------------------
+        # Three API for trainning and evaluation.
+        #----------------------------------------
+        # API one
+        #learn_runner.run(experiment_fn=_create_experiment_fn,
+        #                 output_dir="NOT-USED",
+        #                 schedule="local_run") # call exeperiment's local_run() method
 
-        if m.config.is_chief:
-            print("evaluating in chief worker task...\n")
-            evaluate(m, data_dir)
+        # API two
+        #e = _create_experiment_fn(output_dir="NOT-USED")
+        #e.local_run() # call experiment's train_and_evaluate() method
+
+        # API three
+        e = _create_experiment_fn(output_dir="NOT-USED")
+        e.train_and_evaluate() # call estimator's fit() and evaluate() method
+
 
 
 if __name__ == "__main__":
@@ -271,7 +286,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--train_steps",
         type=int,
-        default=500,
+        default=200,
         help="Number of training steps."
     )
     parser.add_argument(
